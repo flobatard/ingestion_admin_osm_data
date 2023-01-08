@@ -28,7 +28,7 @@ def buildInsert(rows, baseRow):
             else:
                 l[row[1]-1]=row[0]
     else:
-        l[baseRow[2]]=baseRow[0]
+        l[baseRow[2]-1]=baseRow[0]
 
     ret = l + [baseRow[0], baseRow[1], baseRow[2], baseRow[4], baseRow[3]]
     retString = "INSERT INTO public.location( "

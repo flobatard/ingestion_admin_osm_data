@@ -43,13 +43,20 @@ if (__name__ == '__main__'):
 
     argParser = createArgs()
     args = argParser.parse_args()
-    execute_osm2pgsql(args.host, args.database, args.username, args.password, args.exeosm2pgsql, args.style, args.inputFile)
+
+    if (args.skip != 'osm'):
+        execute_osm2pgsql(args.host, args.database, args.username, args.password, args.exeosm2pgsql, args.style, args.inputFile)
     create = False
+
+
+
     if (args.create == 'true' and args.outputHost==None and args.outputPassword==None and args.outputPort==None and args.outputUser==None):
         create = True
     if (togo != ''):
         os.chdir(togo)
-    BM2CM.baseModelToContainsModel(args.host, args.database, args.username, args.password, args.port, args.outputDatabase, args.outputHost, args.outputUser, args.outputPassword, args.outputPort, create)
+
+    if (args.skip != 'model'):
+        BM2CM.baseModelToContainsModel(args.host, args.database, args.username, args.password, args.port, args.outputDatabase, args.outputHost, args.outputUser, args.outputPassword, args.outputPort, create)
 
     os.chdir(initPath)
 
