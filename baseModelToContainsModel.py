@@ -13,6 +13,7 @@ def runSQLScript(fileName, conn, replacements=[]):
     queries = loadSQLQueries(fileName, replacements)
     for query in queries:
         if (query.replace(' ', '') != ''):
+            print(query)
             cur.execute(query)
     cur.close()
 
@@ -43,17 +44,20 @@ def buildInsert(rows, baseRow):
 
     return (retString, tuple(ret))
 
-def setupFinal(host, new_db, username, port, password, conn):
+def setupFinal(host, new_db, username, port, password):
+    print("CONNECTING TO FINAL DB: host=", host, " db_name=", new_db, " username=", username, " port=", port, " password=", password)
     conn2 = psycopg2.connect(host=host, database=new_db, user=username, port=port, password=password)
-
+    print("CONNECTED")
     cur = conn2.cursor()
     try:
+        print('CREATE extension hstore;')
         cur.execute('CREATE extension hstore;')
     except Exception as e:
         print(e)
         print('Not able to create extension hstore probably already installed : \n CREATE extensions hstore;')
 
     try:
+        print('CREATE extension postgis;')
         cur.execute('CREATE extension postgis;')
     except Exception as e:
         print(e)
@@ -102,17 +106,20 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         if (newPassword != password):
             print(newPassword, "!=", password)
         if (newPort != port):
-            print(newPort, "!=", port)
+            print(int(newPort), "!=", int(port))
         create = False
 
-    conn = psycopg2.connect(host=host, database=database, user=username, port=port, password=password)
+
+    print("CONNECTING TO OSM_DB : host=", host, " db_name=", database, " username=", username, " port=", port, " password=", password)
+    conn = psycopg2.connect(host=host, database=database, user=username, port=int(port), password=password)
+    print("CONNECTED")
     conn.set_isolation_level( psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT )
 
     cur = conn.cursor()
-
     if (create):
+        print("CREATE DATABASE {}".format(new_db))
         cur.execute("CREATE DATABASE {}".format(new_db))
-    connNewDb = setupFinal(newHost, new_db, newUsername, newPort, newPassword, conn)
+    connNewDb = setupFinal(newHost, new_db, newUsername, newPort, newPassword)
 
     runSQLScript('setupQueries.sql', conn, [('$1', new_db)])
     try:
@@ -152,7 +159,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         cur.close()
         conn.commit()
         connNewDb.commit()
-
+        runSQLScript('searchTableQueries.sql')
         runSQLScript('cleanQueries.sql', conn)
 
         conn.commit()

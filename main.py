@@ -47,12 +47,13 @@ if (__name__ == '__main__'):
 
     if (args.skip != 'osm'):
         execute_osm2pgsql(args.host, args.database, args.username, args.password, args.exeosm2pgsql, args.style, args.inputFile)
+    
+    
     create = False
-
-
-
     if (args.create == 'true' and args.outputHost==None and args.outputPassword==None and args.outputPort==None and args.outputUser==None):
         create = True
+    else:
+        print("CREATE = False because other connection parameters has been provided")
     if (togo != ''):
         os.chdir(togo)
 

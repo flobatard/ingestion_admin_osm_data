@@ -1,17 +1,17 @@
-CREATE INDEX naming_location_osm_id_index
-    ON public.naming_location USING btree
+CREATE INDEX location_naming_osm_id_index
+    ON public.location_naming USING btree
     (osm_id ASC NULLS LAST)
     WITH (FILLFACTOR=100)
 ;
 
-CREATE INDEX naming_location_name_index
-    ON public.naming_location USING btree
+CREATE INDEX location_naming_name_index
+    ON public.location_naming USING btree
     (name ASC NULLS LAST)
     WITH (FILLFACTOR=100)
 ;
 
-CREATE INDEX naming_location_admin_level_index
-    ON public.naming_location USING btree
+CREATE INDEX location_naming_admin_level_index
+    ON public.location_naming USING btree
     (admin_level ASC NULLS LAST)
     WITH (FILLFACTOR=100)
 ;
