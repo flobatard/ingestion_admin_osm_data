@@ -48,4 +48,4 @@ FROM location WHERE osm_id=%s;
 
 UPDATE public.location
 	SET level_1=%s, level_2=%s, level_3=%s, level_4=%s, level_5=%s, level_6=%s, level_7=%s, level_8=%s, level_9=%s, level_10=%s, level_11=%s, level_12=%s, level_13=%s, level_14=%s, level_15=%s
-	WHERE osm_id=%s, name=%s, admin_level=%s;
+	WHERE osm_id=%s AND name=%s AND admin_level=%s;

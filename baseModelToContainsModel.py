@@ -1,4 +1,5 @@
 import psycopg2
+import cleanDataOutOfParents as cleanParents
 
 def loadSQLQueries(fileName, replacements=[]):
     fd = open(fileName, 'r')

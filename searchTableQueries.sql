@@ -55,7 +55,13 @@ LEFT JOIN location_naming as l14 ON l14.osm_id=level_14
 LEFT JOIN location_naming as l15 ON l15.osm_id=level_15
 ORDER BY admin_level;
 
-CREATE INDEX ts_idx ON location_search USING GIN (ts);
+CREATE INDEX IF NOT EXISTS ts_idx ON location_search USING GIN (ts);
 
 ALTER TABLE location_search
-ADD PRIMARY KEY (osm_id); 
+ADD PRIMARY KEY (osm_id, complete_string);
+
+CREATE INDEX IF NOT EXISTS location_search_osm_id
+    ON public.location_search USING btree
+    (osm_id ASC NULLS LAST)
+    WITH (FILLFACTOR=100)
+;

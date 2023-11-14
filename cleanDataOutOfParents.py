@@ -5,6 +5,8 @@
 #Multiple locations that have tha same osm_id but not the same level_i columns
 #We are here to correct that
 
+#Not used in the end...
+
 def loadSQLQueries(fileName, replacements=[]):
     fd = open(fileName, 'r')
     sqlFile = fd.read()
@@ -25,7 +27,7 @@ def cleanDataOutOfParents(conn):
     update_query = queries[2]
     
     cur.execute(get_bad_osm_ids)
-    rows = cur.fetchAll()
+    rows = cur.fetchall()
     
     #[count, name, admin_level, osm_id]
     for bad_osm_line in rows:
@@ -36,13 +38,13 @@ def cleanDataOutOfParents(conn):
         
         #[[osm_id, name, admin_level, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9,
 	    #level_10, level_11, level_12, level_13, level_14, level_15]]
-        to_merge = cur.fetchAll() #Here we have all the different level we want to kind of "merge"
-        merge_levels(osm_id, name, admin_level, to_merge, cur)
+        to_merge = cur.fetchall() #Here we have all the different level we want to kind of "merge"
+        merge_levels(osm_id, name, admin_level, to_merge, cur, update_query)
         
     cur.close()
     conn.commit()
 
-def merge_levels(osm_id, name, admin_level, to_merge, cur):
+def merge_levels(osm_id, name, admin_level, to_merge, cur, update_query):
     levels = [None for i in range(15)]
     #[osm_id, name, admin_level, level_1, level_2, level_3, level_4, level_5, level_6, level_7, level_8, level_9,
 	#level_10, level_11, level_12, level_13, level_14, level_15]
@@ -58,6 +60,7 @@ def merge_levels(osm_id, name, admin_level, to_merge, cur):
     
     for line in to_merge:
         cur.execute(update_query, levels + [osm_id, name, admin_level])
+    print("Cleaned : {}".format(name))
         
     
     
