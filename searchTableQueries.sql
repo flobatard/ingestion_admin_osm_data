@@ -1,6 +1,6 @@
 DROP TABLE IF EXISTS location_search;
 
-SELECT DISTINCT  
+SELECT DISTINCT
 l.osm_id, l.name, l.admin_level,
 to_tsvector(
 COALESCE (l1.name || ',', '') ||  
@@ -56,3 +56,6 @@ LEFT JOIN location_naming as l15 ON l15.osm_id=level_15
 ORDER BY admin_level;
 
 CREATE INDEX ts_idx ON location_search USING GIN (ts);
+
+ALTER TABLE location_search
+ADD PRIMARY KEY (osm_id); 

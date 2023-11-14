@@ -6,7 +6,7 @@ def loadSQLQueries(fileName, replacements=[]):
     fd.close()
     for tuple in replacements:
         sqlFile=sqlFile.replace(tuple[0], tuple[1])
-    return sqlFile.split(";");
+    return sqlFile.split(";")
 
 def runSQLScript(fileName, conn, replacements=[]):
     cur = conn.cursor()
