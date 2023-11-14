@@ -60,6 +60,12 @@ CREATE INDEX IF NOT EXISTS ts_idx ON location_search USING GIN (ts);
 ALTER TABLE location_search
 ADD PRIMARY KEY (osm_id, complete_string);
 
+ALTER Table Test_alter 
+ADD id INTEGER GENERATED ALWAYS AS IDENTITY;
+
+ALTER TABLE location_search
+ADD PRIMARY KEY (id);
+
 CREATE INDEX IF NOT EXISTS location_search_osm_id
     ON public.location_search USING btree
     (osm_id ASC NULLS LAST)
