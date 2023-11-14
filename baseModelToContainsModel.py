@@ -37,7 +37,6 @@ def buildInsert(rows, baseRow):
                     }
     
     for i in range(len(levels)):
-        print(levels[i])
         insert_to_do[levels[i]] = l[i]
 
     retString = "INSERT INTO public.location( "
@@ -175,11 +174,10 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         cur.close()
         conn.commit()
         connNewDb.commit()
-        runSQLScript('searchTableQueries.sql', conn)
         runSQLScript('cleanQueries.sql', conn)
 
         conn.commit()
-
+        runSQLScript('searchTableQueries.sql', connNewDb)
         createIndexes(connNewDb)
         connNewDb.commit()
     except Exception as e:

@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS location_search;
+
 SELECT DISTINCT  
 l.osm_id, l.name, l.admin_level,
 to_tsvector(
@@ -15,7 +17,7 @@ COALESCE (l11.name || ',', '') ||
 COALESCE (l12.name || ',', '') ||
 COALESCE (l13.name || ',', '') ||  
 COALESCE (l14.name || ',', '') ||
-COALESCE (l15.name || ',', '') ) as ts
+COALESCE (l15.name || ',', '') ) as ts,
 COALESCE (l1.name || ',', '') ||  
 COALESCE (l2.name || ',', '') ||
 COALESCE (l3.name || ',', '') ||
@@ -30,11 +32,10 @@ COALESCE (l11.name || ',', '') ||
 COALESCE (l12.name || ',', '') ||
 COALESCE (l13.name || ',', '') ||  
 COALESCE (l14.name || ',', '') ||
-COALESCE (l15.name || ',', '') ) as complete_string
-[l1.name, l2.name, l3.name, l4.name, l5.name
-l6.name, l7.name, l8.name, l9.name, l10.name
+COALESCE (l15.name || ',', '') as complete_string,
+array[l1.name, l2.name, l3.name, l4.name, l5.name,
+l6.name, l7.name, l8.name, l9.name, l10.name,
 l11.name, l12.name, l13.name, l14.name, l15.name] as admin_tree
-
 INTO location_search
 FROM location as l
 LEFT JOIN location_naming as l1 ON l1.osm_id=level_1
