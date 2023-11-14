@@ -19,5 +19,5 @@ python main.py -D=yourdb -H=<host> -P=<port> -U=<user> -W=<password> -I=<osmFile
 ## Skip osm2pgSQLPart
 python main.py -D=yourdb -H=<host> -P=<port> -U=<user> -W=<password> -I=<osmFilePath> -E=<osm2pgsqlPath> -s=osm -c=False -oD=<nameOfOutputDatabase>
 
-##Don't integrate in database
+## Don't integrate in database
 python main.py -D=yourdb -H=<host> -P=<port> -U=<user> -W=<password> -I=<osmFilePath> -E=<osm2pgsqlPath> -s=model -c=False -oD=<nameOfOutputDatabase>

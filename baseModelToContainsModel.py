@@ -17,35 +17,45 @@ def runSQLScript(fileName, conn, replacements=[]):
             cur.execute(query)
     cur.close()
 
+#Base Rpw [osm_id, name, admin_level, way, way_area]
 def buildInsert(rows, baseRow):
-    l = [None for i in range(15)]
-    levels = ["level_"+str(i+1) for i in range(15)]
+    l = [None for i in range(15)] #Represents what will be inserted in the 15 admin levels
+    levels = ["level_"+str(i+1) for i in range(len(l))] #Just the name of the columns
+    l[baseRow[2]-1]=baseRow[0] #Insert the base row at his admin level
     if (len(rows) != 0):
-
-        l[baseRow[2]-1]=baseRow[0]
+        #Row [osm_id, name, admin_level, admin_level_of_baseRow(useless)]
         for row in rows:
             if (l[row[1]-1] != None):
-                raise Exception("Conflit : ", l[row[1]], " ", row[0])
+                raise Exception("Conflit : ", l[row[1]], " ", row[0]) #Would mean baseRow would have 2 parents from the same admin_level
             else:
                 l[row[1]-1]=row[0]
-    else:
-        l[baseRow[2]-1]=baseRow[0]
+    insert_to_do = {"osm_id" : baseRow[0],
+                    "name" : baseRow[1],
+                    "admin_level" : baseRow[2],
+                    "way" : baseRow[3],
+                    "way_area" : baseRow[4],
+                    }
+    
+    for i in range(len(levels)):
+        print(levels[i])
+        insert_to_do[levels[i]] = l[i]
 
-    ret = l + [baseRow[0], baseRow[1], baseRow[2], baseRow[4], baseRow[3]]
     retString = "INSERT INTO public.location( "
-    a = 0
-    for i in l:
-        a += 1
-        retString += "level_" + str(a) + ", "
+    for i in range(len(l)):
+        retString += levels[i] + ", "
     retString += "osm_id, name, admin_level, way_area, way) VALUES ("
-    for i in l:
-        retString += '%s, '
-    retString += "%s, %s, %s, %s, %s)"
-
-    return (retString, tuple(ret))
+    for i in range(len(l)):
+        retString += '%({})s, '.format(levels[i])
+    retString += "%(osm_id)s, %(name)s, %(admin_level)s, %(way_area)s, %(way)s) ON CONFLICT (osm_id, way_area) DO UPDATE SET "
+    
+    equals = []
+    for key in insert_to_do:
+        equals.append("{0}=%({0})s".format(key))
+    retString += ", ".join(equals) + " WHERE location.osm_id=%(osm_id)s AND location.way_area=%(way_area)s"
+    return (retString, insert_to_do)
 
 def setupFinal(host, new_db, username, port, password):
-    print("CONNECTING TO FINAL DB: host=", host, " db_name=", new_db, " username=", username, " port=", port, " password=", password)
+    print("CONNECTING TO FINAL DB: host={0} db_name={1} username={2} port={3} password={4}".format(host, new_db, username, port, password))
     conn2 = psycopg2.connect(host=host, database=new_db, user=username, port=port, password=password)
     print("CONNECTED")
     cur = conn2.cursor()
@@ -117,8 +127,14 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
 
     cur = conn.cursor()
     if (create):
-        print("CREATE DATABASE {}".format(new_db))
-        cur.execute("CREATE DATABASE {}".format(new_db))
+        print("SELECT 1 FROM pg_database WHERE datname = '{0}'".format(new_db))
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = '{0}'".format(new_db))
+        res = cur.fetchall()
+        print(res)
+        if (len(res) == 0):
+            print("CREATE DATABASE \"{}\"".format(new_db))
+            cur.execute("CREATE DATABASE \"{}\"".format(new_db))
+            
     connNewDb = setupFinal(newHost, new_db, newUsername, newPort, newPassword)
 
     runSQLScript('setupQueries.sql', conn, [('$1', new_db)])
@@ -139,7 +155,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         rows = cur.fetchall()
 
         for row in rows:
-            curNew.execute(insertNamesQuery, (row[0], row[1], row[2]))
+            curNew.execute(insertNamesQuery, {"osm_id" : row[0], "name" : row[1], "admin_level" : row[2]})
 
         cur.execute(queryAll)
 
@@ -159,7 +175,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         cur.close()
         conn.commit()
         connNewDb.commit()
-        runSQLScript('searchTableQueries.sql')
+        runSQLScript('searchTableQueries.sql', conn)
         runSQLScript('cleanQueries.sql', conn)
 
         conn.commit()

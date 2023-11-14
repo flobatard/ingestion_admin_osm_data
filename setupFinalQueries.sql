@@ -1,4 +1,4 @@
-CREATE TABLE public.location_naming
+CREATE TABLE IF NOT EXISTS public.location_naming
 (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY,
     osm_id bigint NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE public.location_naming
     CONSTRAINT osm_id_unique UNIQUE (osm_id)
 );
 
-CREATE TABLE public.location
+CREATE TABLE IF NOT EXISTS public.location
 (
     id bigint NOT NULL GENERATED ALWAYS AS IDENTITY,
     level_1 bigint DEFAULT NULL,
@@ -106,5 +106,6 @@ CREATE TABLE public.location
         REFERENCES public.location_naming (osm_id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
-        NOT VALID
+        NOT VALID,
+    CONSTRAINT osm_id_area_unique UNIQUE (osm_id, way_area) -- way is too big for unique constraint so we take way_area which should be pretty unique but can lead to problems :/
 );

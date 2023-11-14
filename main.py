@@ -6,6 +6,7 @@ import sys
 import time
 ## The model to pass from osm data_strucutre to tree strucure containing all contained polygones
 import baseModelToContainsModel as BM2CM
+import osm2pgsql
 
 def execute_osm2pgsql(host, db, user, password, osm2pgsqlPath, stylePath, osmDataPath):
     cmd = '{} -c -d {} -U {} -W -S {} -H {} {}'.format(osm2pgsqlPath, db, user, stylePath, host, osmDataPath)
@@ -46,8 +47,8 @@ if (__name__ == '__main__'):
     args = argParser.parse_args()
 
     if (args.skip != 'osm'):
-        execute_osm2pgsql(args.host, args.database, args.username, args.password, args.exeosm2pgsql, args.style, args.inputFile)
-    
+        osm2pgsql.integrate_osm_data(args.host, args.database, args.username, args.password, args.port, args.exeosm2pgsql, args.style, args.inputFile)
+        
     
     create = False
     if (args.create == 'true' and args.outputHost==None and args.outputPassword==None and args.outputPort==None and args.outputUser==None):
