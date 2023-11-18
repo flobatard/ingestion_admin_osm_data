@@ -35,7 +35,8 @@ COALESCE (l14.name || ',', '') ||
 COALESCE (l15.name || ',', '') as complete_string,
 array[l1.name, l2.name, l3.name, l4.name, l5.name,
 l6.name, l7.name, l8.name, l9.name, l10.name,
-l11.name, l12.name, l13.name, l14.name, l15.name] as admin_tree
+l11.name, l12.name, l13.name, l14.name, l15.name] as admin_tree,
+FALSE as ts_update
 INTO location_search
 FROM location as l
 LEFT JOIN location_naming as l1 ON l1.osm_id=level_1
@@ -55,16 +56,20 @@ LEFT JOIN location_naming as l14 ON l14.osm_id=level_14
 LEFT JOIN location_naming as l15 ON l15.osm_id=level_15
 ORDER BY admin_level;
 
-CREATE INDEX IF NOT EXISTS ts_idx ON location_search USING GIN (ts);
 
-ALTER TABLE location_search
-ADD PRIMARY KEY (osm_id, complete_string);
-
-ALTER Table Test_alter 
+ALTER Table location_search
 ADD id INTEGER GENERATED ALWAYS AS IDENTITY;
 
 ALTER TABLE location_search
 ADD PRIMARY KEY (id);
+
+
+CREATE INDEX IF NOT EXISTS ts_location_idx ON location_search USING GIN (ts);
+
+CREATE INDEX IF NOT EXISTS ts_location_update_idx
+    ON location_search USING btree
+    (ts_update ASC NULLS LAST)
+;
 
 CREATE INDEX IF NOT EXISTS location_search_osm_id
     ON public.location_search USING btree
