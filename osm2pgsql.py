@@ -2,7 +2,17 @@ import psycopg2
 import os
 
 def setup_extensions(host, db, user, password, port):
-    conn = psycopg2.connect(host=host, database=db, user=user, port=port, password=password)
+
+    try:
+        conn = psycopg2.connect(host=host, database=db, user=user, port=port, password=password)
+    except Exception as e:
+        print("HOST: ", host)
+        print("DB: ", db)
+        print("USER: ", user)
+        print("PORT: ", port)
+        print("NOT ABLE TO CONNECT TO THIS DB")
+        raise e
+        
     print("CONNECTED")
     cur = conn.cursor()
     try:

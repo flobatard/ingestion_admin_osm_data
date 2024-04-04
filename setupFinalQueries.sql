@@ -109,3 +109,9 @@ CREATE TABLE IF NOT EXISTS public.location
         NOT VALID,
     CONSTRAINT osm_id_area_unique UNIQUE (osm_id, way_area) -- way is too big for unique constraint so we take way_area which should be pretty unique but can lead to problems :/
 );
+
+CREATE INDEX IF NOT EXISTS location_osm_id_index
+    ON public.location USING btree
+    (osm_id)
+    WITH (FILLFACTOR=100)
+;

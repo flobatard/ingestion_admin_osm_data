@@ -28,12 +28,6 @@ CREATE INDEX IF NOT EXISTS location_level_$1_index
     WITH (FILLFACTOR=100)
 ;
 
-CREATE INDEX IF NOT EXISTS location_osm_id_index
-    ON public.location USING btree
-    (osm_id)
-    WITH (FILLFACTOR=100)
-;
-
 CREATE INDEX IF NOT EXISTS location_admin_level_index
     ON public.location USING btree
     (admin_level)

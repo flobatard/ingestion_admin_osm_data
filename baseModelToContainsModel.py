@@ -1,5 +1,5 @@
 import psycopg2
-import cleanDataOutOfParents as cleanParents
+import solidifyParentsParents as cleanParents
 
 def loadSQLQueries(fileName, replacements=[]):
     fd = open(fileName, 'r')
@@ -17,41 +17,59 @@ def runSQLScript(fileName, conn, replacements=[]):
             print(query)
             cur.execute(query)
     cur.close()
+    
+#insert_to_do_:    
+#{
+#   osm_id: osm_id
+#   name: name
+#   admin_level: admin_level
+#   way: way
+#   way_area: way_area
+#   level_1: 
+#   level_2:
+#   ...
+#   level_15:
+#}
+#    
+def buildInsertString(insert_to_do):
+    retString = "INSERT INTO public.location( "
+    retString += ", ".join(map(lambda x: str(x), insert_to_do.keys())) + ")\n VALUES ("
+    retString += ", ".join(map(lambda x: "%({})s".format(str(x)), insert_to_do.keys())) + ")\n ON CONFLICT (osm_id, way_area) DO UPDATE SET "
+    equals = []
+    for key in insert_to_do.keys():
+        equals.append("{0}=%({0})s".format(key))
+    retString += ", ".join(equals) + "\n WHERE location.osm_id=%(osm_id)s AND location.way_area=%(way_area)s"
+    return retString
 
-#Base Rpw [osm_id, name, admin_level, way, way_area]
-def buildInsert(rows, baseRow):
+#Base Row [osm_id, name, admin_level, way, way_area]
+def buildInsert(parents, baseRow):
     l = [None for i in range(15)] #Represents what will be inserted in the 15 admin levels
     levels = ["level_"+str(i+1) for i in range(len(l))] #Just the name of the columns
     l[baseRow[2]-1]=baseRow[0] #Insert the base row at his admin level
-    if (len(rows) != 0):
+    if (len(parents) != 0):
         #Row [osm_id, name, admin_level, admin_level_of_baseRow(useless)]
-        for row in rows:
+        for row in parents:
             if (l[row[1]-1] != None):
-                raise Exception("Conflit : ", l[row[1]], " ", row[0]) #Would mean baseRow would have 2 parents from the same admin_level
+                print("Admin level: ", row[1])
+                print("BASEROW: ", baseRow)
+                print("ALREADY SET: ", l[row[1] - 1])
+                print("CONFICT: ", row[0])
+                raise Exception("Conflit : ", l[row[1] - 1], " ", row[0]) #Would mean baseRow would have 2 parents from the same admin_level
             else:
                 l[row[1]-1]=row[0]
-    insert_to_do = {"osm_id" : baseRow[0],
-                    "name" : baseRow[1],
-                    "admin_level" : baseRow[2],
-                    "way" : baseRow[3],
-                    "way_area" : baseRow[4],
-                    }
+                
+    insert_to_do = {
+        "osm_id" : baseRow[0],
+        "name" : baseRow[1],
+        "admin_level" : baseRow[2],
+        "way" : baseRow[3],
+        "way_area" : baseRow[4],
+    }
     
     for i in range(len(levels)):
         insert_to_do[levels[i]] = l[i]
-
-    retString = "INSERT INTO public.location( "
-    for i in range(len(l)):
-        retString += levels[i] + ", "
-    retString += "osm_id, name, admin_level, way_area, way) VALUES ("
-    for i in range(len(l)):
-        retString += '%({})s, '.format(levels[i])
-    retString += "%(osm_id)s, %(name)s, %(admin_level)s, %(way_area)s, %(way)s) ON CONFLICT (osm_id, way_area) DO UPDATE SET "
     
-    equals = []
-    for key in insert_to_do:
-        equals.append("{0}=%({0})s".format(key))
-    retString += ", ".join(equals) + " WHERE location.osm_id=%(osm_id)s AND location.way_area=%(way_area)s"
+    retString = buildInsertString(insert_to_do)
     return (retString, insert_to_do)
 
 def setupFinal(host, new_db, username, port, password):
