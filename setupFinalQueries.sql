@@ -107,7 +107,11 @@ CREATE TABLE IF NOT EXISTS public.location
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID,
-    CONSTRAINT osm_id_area_unique UNIQUE (osm_id, way_area) -- way is too big for unique constraint so we take way_area which should be pretty unique but can lead to problems :/
+    CONSTRAINT osm_id_area_unique UNIQUE (level_1, level_2, level_3, level_4, 
+                                level_5, level_6, level_7, level_8,
+                                level_9, level_10, level_11, level_12,
+                                level_13, level_14, level_15,
+                                osm_id, way_area) -- way is too big for unique constraint so we take way_area which should be pretty unique but can lead to problems :/
 );
 
 CREATE INDEX IF NOT EXISTS location_osm_id_index

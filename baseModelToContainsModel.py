@@ -34,43 +34,81 @@ def runSQLScript(fileName, conn, replacements=[]):
 def buildInsertString(insert_to_do):
     retString = "INSERT INTO public.location( "
     retString += ", ".join(map(lambda x: str(x), insert_to_do.keys())) + ")\n VALUES ("
-    retString += ", ".join(map(lambda x: "%({})s".format(str(x)), insert_to_do.keys())) + ")\n ON CONFLICT (osm_id, way_area) DO UPDATE SET "
+    retString += ", ".join(map(lambda x: "%({})s".format(str(x)), insert_to_do.keys())) + ")\n ON CONFLICT (level_1, level_2, level_3, level_4, \
+                                level_5, level_6, level_7, level_8,\
+                                level_9, level_10, level_11, level_12,\
+                                level_13, level_14, level_15,\
+                                osm_id, way_area) DO UPDATE SET "
     equals = []
     for key in insert_to_do.keys():
         equals.append("{0}=%({0})s".format(key))
     retString += ", ".join(equals) + "\n WHERE location.osm_id=%(osm_id)s AND location.way_area=%(way_area)s"
     return retString
 
+#[["a", "b"],["c"],[]] -> [["a","c",None], ["b","c",None]]
+#[["a", "b"], ["1, 3"], [], ["A"], []] -> [["a", "1", None, "A", None], ["b", "1", None, "A", None], ["a", "3", None, "A", None], ["b", "3", None, "A", None]]
+#
+def combineList(l):
+    if (l==[]):
+        return []
+    l2 = l[0]
+    if (len(l) == 1):
+        if (len(l2) == 0):
+            return [[None]]
+        else:
+            return list(map(lambda x: [x], l2))
+
+    if (len(l2) == 0):
+        return list(map(lambda x: [None] + x, combineList(l[1:])))
+    elif (len(l2) == 1):
+        return list(map(lambda x: [l2[0]] + x, combineList(l[1:])))
+    else:
+        ret = []
+        for li in combineList(l[1:]):
+            for possibility in l2:
+                ret.append([possibility] + li)
+        return ret
+
 #Base Row [osm_id, name, admin_level, way, way_area]
-def buildInsert(parents, baseRow):
-    l = [None for i in range(15)] #Represents what will be inserted in the 15 admin levels
-    levels = ["level_"+str(i+1) for i in range(len(l))] #Just the name of the columns
-    l[baseRow[2]-1]=baseRow[0] #Insert the base row at his admin level
-    if (len(parents) != 0):
-        #Row [osm_id, name, admin_level, admin_level_of_baseRow(useless)]
-        for row in parents:
-            if (l[row[1]-1] != None):
-                print("Admin level: ", row[1])
-                print("BASEROW: ", baseRow)
-                print("ALREADY SET: ", l[row[1] - 1])
-                print("CONFICT: ", row[0])
-                raise Exception("Conflit : ", l[row[1] - 1], " ", row[0]) #Would mean baseRow would have 2 parents from the same admin_level
-            else:
-                l[row[1]-1]=row[0]
-                
-    insert_to_do = {
-        "osm_id" : baseRow[0],
-        "name" : baseRow[1],
-        "admin_level" : baseRow[2],
-        "way" : baseRow[3],
-        "way_area" : baseRow[4],
-    }
+def buildInsertsData(parents, baseRow):
+    osm_id = baseRow[0]
+    name = baseRow[1]
+    admin_level = baseRow[2]
+    way = baseRow[3]
+    way_area = baseRow[4]
+    l = [[] for i in range(15)]
+    levels = ["level_"+str(i+1) for i in range(len(l))]
+    l[admin_level-1]=[osm_id]
+    #Parent [osm_id, admin_level, name, admin_level_of_baseRow(useless)]
+    for parent in parents:
+        parent_osm_id = parent[0]
+        parent_admin_level = parent[1]
+        l[parent_admin_level - 1].append(parent_osm_id)
     
-    for i in range(len(levels)):
-        insert_to_do[levels[i]] = l[i]
+    final_list = combineList(l)
+    ret = []
+    if (len(final_list) > 1):
+        print("MULTIPLE PARENTS: ", final_list)
+    for parents_osm in final_list:
+        insert_to_do = {
+            "osm_id" : osm_id,
+            "name" : name,
+            "admin_level" : admin_level,
+            "way" : way,
+            "way_area" : way_area
+        }
+        for i in range(len(levels)):
+            insert_to_do[levels[i]] = parents_osm[i]
+        ret.append(insert_to_do)
+    return ret
+
+#Base Row [osm_id, name, admin_level, way, way_area]
+def buildInserts(parents, baseRow):    
+    inserts_to_do = buildInsertsData(parents, baseRow)
     
-    retString = buildInsertString(insert_to_do)
-    return (retString, insert_to_do)
+    retStrings = list(map(lambda x: buildInsertString(x), inserts_to_do))
+
+    return (retStrings, inserts_to_do)
 
 def setupFinal(host, new_db, username, port, password):
     print("CONNECTING TO FINAL DB: host={0} db_name={1} username={2} port={3} password={4}".format(host, new_db, username, port, password))
@@ -187,8 +225,9 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             cur.execute(queryUpperAdminLevel, (osm_id, way))
 
             parents = cur.fetchall()
-            query, params = buildInsert(parents, row)
-            curNew.execute(query, params)
+            querys, params = buildInserts(parents, row)
+            for j in range(len(querys)):
+                curNew.execute(querys[j], params[j])
 
         cur.close()
         conn.commit()
