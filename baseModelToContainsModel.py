@@ -19,7 +19,10 @@ def runSQLScript(fileName, conn, replacements=[]):
     cur.close()
     
 def buildSameLocationQuery():
-    findQuery = "SELECT id, osm_id, way \
+    findQuery = "SELECT id, osm_id, level_1, level_2, level_3, level_4, level_5, \
+        level_6, level_7, level_8, level_9, level_10, \
+        level_11, level_12, level_13, level_14, level_15,\
+        way, way_area \
         FROM public.location \
         WHERE osm_id=%(osm_id)s AND \
         ( (ST_AREA(ST_INTERSECTION(%(way)s, way)))/way_area > 0.95 OR (ST_AREA(ST_INTERSECTION(%(way)s, way)))/%(way_area)s > 0.95 ) \
@@ -267,6 +270,29 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             querys, params = buildInserts(parents, row)
             
             inserts_to_do = buildInsertsData(parents, row)
+            
+            sameLocations = list(map(lambda x : 
+                {
+                    "id": x[0],
+                    "osm_id": x[1],
+                    "level_1": x[2],
+                    "level_2": x[3],
+                    "level_3": x[4],
+                    "level_4": x[5],
+                    "level_5": x[6],
+                    "level_6": x[7],
+                    "level_7": x[8],
+                    "level_8": x[9],
+                    "level_9": x[10],
+                    "level_10": x[11],
+                    "level_11": x[12],
+                    "level_12": x[13],
+                    "level_13": x[14],
+                    "level_14": x[15],
+                    "level_15": x[16],
+                    "way": x[17],
+                    "way_area": x[18]
+                }, sameLocations))
         
             
             if (len(sameLocations) == 0):
@@ -277,7 +303,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
                     curNewDelIns.execute(querys[j], inserts_to_do[j])
             elif (len(sameLocations) != len(inserts_to_do)):
                 #DELETE
-                ids = list(map(lambda x: x[0], sameLocations))
+                ids = list(map(lambda x: x["id"], sameLocations))
                 deleteIds(ids, curNewDelIns)
                 deleted_by_replaced += len(ids)
                 querys = list(map(lambda x: buildInsertString(x), inserts_to_do))
@@ -285,14 +311,13 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
                     inserted_by_replace += 1
                     curNewDelIns.execute(querys[j], inserts_to_do[j])
             else:
-                #MIGHT CHANGE TO MAKE UPDATES
-                ids = list(map(lambda x: x[0], sameLocations))
+                #UPDATES
+                ids = list(map(lambda x: x["id"], sameLocations))
                 querys = list(map(lambda insert_to_do_id: buildUpdateString(insert_to_do_id[0], insert_to_do_id[1]), zip(inserts_to_do, ids)))
                 params = []
                 for j in range(len(inserts_to_do)):
                     inserts_to_do[j]["id"] = ids[j]
                     params.append(inserts_to_do[j])
-                deleteIds(ids, curNewDelIns)
                 for j in range(len(querys)):
                     updated_by_replace += 1
                     curNewDelIns.execute(querys[j], params[j])
