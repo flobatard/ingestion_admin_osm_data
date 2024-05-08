@@ -210,7 +210,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
 
         queries = loadSQLQueries('mainQueries.sql')
         queryAll = queries[0]
-        queryUpperAdminLevel = queries[1]
+        queryUpperAdminLevel = queries[2]
 
         queries = loadSQLQueries('namesQueries.sql')
         selectNamesQuery = queries[0]
