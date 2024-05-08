@@ -18,6 +18,18 @@ def runSQLScript(fileName, conn, replacements=[]):
             cur.execute(query)
     cur.close()
     
+def buildSameLocationQuery():
+    findQuery = "SELECT id, osm_id, way \
+        FROM public.location \
+        WHERE osm_id=%(osm_id)s AND \
+        ( (ST_AREA(ST_INTERSECTION(%(way)s, way)))/way_area > 0.95 OR (ST_AREA(ST_INTERSECTION(%(way)s, way)))/%(way_area)s > 0.95 ) \
+        "
+    return findQuery
+
+def deleteIds(ids, cur):
+    query = "DELETE FROM public.location WHERE id=ANY(%(ids)s)"
+    cur.execute(query, {"ids": ids})
+    
 #insert_to_do_:    
 #{
 #   osm_id: osm_id
@@ -204,32 +216,58 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         selectNamesQuery = queries[0]
         insertNamesQuery = queries[1]
 
-
-        curNew = connNewDb.cursor()
+        curNewNames = connNewDb.cursor()
+        
+        curNewDelIns = connNewDb.cursor()
 
         cur.execute(selectNamesQuery)
         rows = cur.fetchall()
 
         for row in rows:
-            curNew.execute(insertNamesQuery, {"osm_id" : row[0], "name" : row[1], "admin_level" : row[2]})
+            curNewNames.execute(insertNamesQuery, {"osm_id" : row[0], "name" : row[1], "admin_level" : row[2]})
+            
+        curNewSameLocation = connNewDb.cursor()
 
         cur.execute(queryAll)
 
+        sameLocationQuery = buildSameLocationQuery()
+
         rows = cur.fetchall()
         i = 0
+        #row [osm_id, name, admin_level, way, way_area]
         for row in rows:
             i += 1
-            print(i, "/", len(rows), " : ", row[1])
+            if (i%100 == 0):
+                print(i, "/", len(rows), " : ", row[1])
             osm_id = row[0]
             way = row[3]
+            way_area = row[4]
             cur.execute(queryUpperAdminLevel, (osm_id, way))
-
             parents = cur.fetchall()
+            
+            curNewSameLocation.execute(sameLocationQuery, {"osm_id": osm_id, "way": way, "way_area": way_area})
+            sameLocations = curNewSameLocation.fetchall()
+            
             querys, params = buildInserts(parents, row)
-            for j in range(len(querys)):
-                curNew.execute(querys[j], params[j])
+            if (len(sameLocations) == 0):
+                #WAS NOT IN
+                for j in range(len(querys)):
+                    curNewDelIns.execute(querys[j], params[j])
+            elif (len(sameLocations) != len(querys)):
+                #DELETE
+                ids = list(map(lambda x: x[0], sameLocations))
+                deleteIds(ids, curNewDelIns)
+                for j in range(len(querys)):
+                    curNewDelIns.execute(querys[j], params[j])
+            else:
+                #MIGHT CHANGE TO MAKE UPDATES
+                ids = list(map(lambda x: x[0], sameLocations))
+                deleteIds(ids, curNewDelIns)
+                for j in range(len(querys)):
+                    curNewDelIns.execute(querys[j], params[j])
 
         cur.close()
+        curNewDelIns.close()
         conn.commit()
         connNewDb.commit()
         runSQLScript('cleanQueries.sql', conn)
