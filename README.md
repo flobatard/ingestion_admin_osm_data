@@ -1,5 +1,7 @@
 # ingestion_admin_osm_data
-A python script for ingesting administrative osm_data in a pgSQL database, require osm2pgsql 
+A python script for ingesting administrative osm_data in a pgSQL database, require osm2pgsql
+
+WARNING: I know the code is shit, i can only code on it when I am drunk because borders are fucking chaotic in this world and I don't have the motivation when i'm sober
 
 ## All + databse creation
 Create Database : 

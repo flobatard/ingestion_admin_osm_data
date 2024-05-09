@@ -64,7 +64,8 @@ def buildUpdateString(insert_to_do, id):
     retString = "UPDATE public.location SET "
     equals = []
     for key in insert_to_do.keys():
-        equals.append("{0}=%({0})s".format(key))
+        if (key != "id"):
+            equals.append("{0}=%({0})s".format(key))
     retString += ", ".join(equals) + "\n WHERE location.id=%(id)s"
     insert_to_do["id"] = id
     return retString
@@ -171,6 +172,35 @@ def createIndexes(conn):
         cur.execute(index_level.replace('$1', str(i)))
     cur.close()
 
+def enrichDataWithSameLocation(data_to_insert, same_location_data):
+    ret = []
+    changes = False
+    for i in range(len(data_to_insert)):
+        to_insert = {
+            "id": same_location_data[i]["id"],
+            "osm_id": data_to_insert[i]["osm_id"],
+            "level_1": data_to_insert[i]["level_1"] or same_location_data[i]["level_1"],
+            "level_2": data_to_insert[i]["level_2"] or same_location_data[i]["level_2"],
+            "level_3": data_to_insert[i]["level_3"] or same_location_data[i]["level_3"],
+            "level_4": data_to_insert[i]["level_4"] or same_location_data[i]["level_4"],
+            "level_5": data_to_insert[i]["level_5"] or same_location_data[i]["level_5"],
+            "level_6": data_to_insert[i]["level_6"] or same_location_data[i]["level_6"],
+            "level_7": data_to_insert[i]["level_7"] or same_location_data[i]["level_7"],
+            "level_8": data_to_insert[i]["level_8"] or same_location_data[i]["level_8"],
+            "level_9": data_to_insert[i]["level_9"] or same_location_data[i]["level_9"],
+            "level_10": data_to_insert[i]["level_10"] or same_location_data[i]["level_10"],
+            "level_11": data_to_insert[i]["level_11"] or same_location_data[i]["level_11"],
+            "level_12": data_to_insert[i]["level_12"] or same_location_data[i]["level_12"],
+            "level_13": data_to_insert[i]["level_13"] or same_location_data[i]["level_13"],
+            "level_14": data_to_insert[i]["level_14"] or same_location_data[i]["level_14"],
+            "level_15": data_to_insert[i]["level_15"] or same_location_data[i]["level_15"],
+            "way": data_to_insert[i]["way"],
+            "way_area": data_to_insert[i]["way_area"]
+        }
+        if (to_insert != same_location_data[i]):
+            changes = True
+        ret.append(to_insert)
+    return (changes and ret)
 
 
 def baseModelToContainsModel(host ,database ,username, password, port=5432, new_db='osm_data', newHost=None, newUsername=None, newPassword=None, newPort=None, create=True):
@@ -250,7 +280,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         full_inserted = 0
         deleted_by_replaced = 0
         inserted_by_replace = 0
-        
+        updated_with_multiple_parents = 0
         updated_by_replace = 0
         not_touched = 0
         #row [osm_id, name, admin_level, way, way_area]
@@ -313,14 +343,19 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             else:
                 #UPDATES
                 ids = list(map(lambda x: x["id"], sameLocations))
-                querys = list(map(lambda insert_to_do_id: buildUpdateString(insert_to_do_id[0], insert_to_do_id[1]), zip(inserts_to_do, ids)))
-                params = []
-                for j in range(len(inserts_to_do)):
-                    inserts_to_do[j]["id"] = ids[j]
-                    params.append(inserts_to_do[j])
-                for j in range(len(querys)):
-                    updated_by_replace += 1
-                    curNewDelIns.execute(querys[j], params[j])
+                enriched_inserts = enrichDataWithSameLocation(inserts_to_do, sameLocations)
+                if (enriched_inserts):
+                    querys = list(map(lambda enriched_ins: buildUpdateString(enriched_ins, enriched_ins["id"]), enriched_inserts))
+                    params = enriched_inserts
+                    
+                    for j in range(len(querys)):
+                        if (len(querys) > 1):
+                            updated_with_multiple_parents += 1
+                        else:
+                            updated_by_replace += 1
+                        curNewDelIns.execute(querys[j], params[j])
+                else:
+                    not_touched += len(ids)
 
         cur.close()
         curNewDelIns.close()
@@ -337,6 +372,7 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         print("DELETED BY REPLACED: ", deleted_by_replaced)
         print("INSERTED BY REPLACE: ",inserted_by_replace)
         print("UPDATED BY REPLACE: ", updated_by_replace)
+        print("UPDATED PARENTS: ", updated_with_multiple_parents)
         print("NOT TOUCHED: ", not_touched)
         
     except Exception as e:
