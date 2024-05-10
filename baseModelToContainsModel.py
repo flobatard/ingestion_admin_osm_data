@@ -1,6 +1,12 @@
 import psycopg2
 import solidifyParentsParents as cleanParents
 
+import threading
+
+def split(a, n):
+    k, m = divmod(len(a), n)
+    return (a[i*k+min(i, m):(i+1)*k+min(i+1, m)] for i in range(n))
+
 def loadSQLQueries(fileName, replacements=[]):
     fd = open(fileName, 'r')
     sqlFile = fd.read()
@@ -14,7 +20,7 @@ def runSQLScript(fileName, conn, replacements=[]):
     queries = loadSQLQueries(fileName, replacements)
     for query in queries:
         if (query.replace(' ', '') != ''):
-            print(query)
+            #print(query)
             cur.execute(query)
     cur.close()
     
@@ -202,6 +208,111 @@ def enrichDataWithSameLocation(data_to_insert, same_location_data):
         ret.append(to_insert)
     return (changes and ret)
 
+def treatRows(rows, connNewDb, connDb):
+    queries = loadSQLQueries('mainQueries.sql')
+    queryUpperAdminLevel = queries[2]
+    
+    sameLocationQuery = buildSameLocationQuery()
+    
+    curNewDelIns = connNewDb.cursor()
+    curNewSameLocation = connNewDb.cursor()
+    cur = connDb.cursor()
+
+    i = 0
+        
+    full_inserted = 0
+    deleted_by_replaced = 0
+    inserted_by_replace = 0
+    updated_with_multiple_parents = 0
+    updated_by_replace = 0
+    not_touched = 0
+    #row [osm_id, name, admin_level, way, way_area]
+    for row in rows:
+        i += 1
+        if (i%100 == 0):
+            print(i, "/", len(rows), " : ", row[1])
+        osm_id = row[0]
+        way = row[3]
+        way_area = row[4]
+        cur.execute(queryUpperAdminLevel, (osm_id, way))
+        parents = cur.fetchall()
+            
+        curNewSameLocation.execute(sameLocationQuery, {"osm_id": osm_id, "way": way, "way_area": way_area})
+        sameLocations = curNewSameLocation.fetchall()
+            
+        querys, params = buildInserts(parents, row)
+            
+        inserts_to_do = buildInsertsData(parents, row)
+            
+        sameLocations = list(map(lambda x : 
+            {
+                "id": x[0],
+                "osm_id": x[1],
+                "level_1": x[2],
+                "level_2": x[3],
+                "level_3": x[4],
+                "level_4": x[5],
+                "level_5": x[6],
+                "level_6": x[7],
+                "level_7": x[8],
+                "level_8": x[9],
+                "level_9": x[10],
+                "level_10": x[11],
+                "level_11": x[12],
+                "level_12": x[13],
+                "level_13": x[14],
+                "level_14": x[15],
+                "level_15": x[16],
+                "way": x[17],
+                "way_area": x[18]
+            }, sameLocations))
+        
+            
+        if (len(sameLocations) == 0):
+            #WAS NOT IN
+            querys = list(map(lambda x: buildInsertString(x), inserts_to_do))
+            for j in range(len(querys)):
+                full_inserted += 1
+                curNewDelIns.execute(querys[j], inserts_to_do[j])
+        elif (len(sameLocations) != len(inserts_to_do)):
+            #DELETE
+            ids = list(map(lambda x: x["id"], sameLocations))
+            deleteIds(ids, curNewDelIns)
+            deleted_by_replaced += len(ids)
+            querys = list(map(lambda x: buildInsertString(x), inserts_to_do))
+            for j in range(len(querys)):
+                inserted_by_replace += 1
+                curNewDelIns.execute(querys[j], inserts_to_do[j])
+        else:
+            #UPDATES
+            ids = list(map(lambda x: x["id"], sameLocations))
+            enriched_inserts = enrichDataWithSameLocation(inserts_to_do, sameLocations)
+            if (enriched_inserts):
+                querys = list(map(lambda enriched_ins: buildUpdateString(enriched_ins, enriched_ins["id"]), enriched_inserts))
+                params = enriched_inserts
+                    
+                for j in range(len(querys)):
+                    if (len(querys) > 1):
+                        updated_with_multiple_parents += 1
+                    else:
+                        updated_by_replace += 1
+                    curNewDelIns.execute(querys[j], params[j])
+            else:
+                not_touched += len(ids)
+    
+    print("FULL INSERTED: ", full_inserted)
+    print("DELETED BY REPLACED: ", deleted_by_replaced)
+    print("INSERTED BY REPLACE: ", inserted_by_replace)
+    print("UPDATED MULTIPLE PARENTS: ", updated_with_multiple_parents)
+    print("UPDATED BY REPLACE: ", updated_by_replace)
+    print("NOT TOUCHED: ", not_touched)
+    cur.close()
+    curNewDelIns.close()
+    curNewSameLocation.close()
+        
+
+    
+
 
 def baseModelToContainsModel(host ,database ,username, password, port=5432, new_db='osm_data', newHost=None, newUsername=None, newPassword=None, newPort=None, create=True):
 
@@ -257,13 +368,11 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         queries = loadSQLQueries('namesQueries.sql')
         selectNamesQuery = queries[0]
         insertNamesQuery = queries[1]
-
-        curNewNames = connNewDb.cursor()
         
-        curNewDelIns = connNewDb.cursor()
-
         cur.execute(selectNamesQuery)
         rows = cur.fetchall()
+
+        curNewNames = connNewDb.cursor()
 
         for row in rows:
             curNewNames.execute(insertNamesQuery, {"osm_id" : row[0], "name" : row[1], "admin_level" : row[2]})
@@ -271,94 +380,10 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         curNewSameLocation = connNewDb.cursor()
 
         cur.execute(queryAll)
-
-        sameLocationQuery = buildSameLocationQuery()
-
         rows = cur.fetchall()
-        i = 0
         
-        full_inserted = 0
-        deleted_by_replaced = 0
-        inserted_by_replace = 0
-        updated_with_multiple_parents = 0
-        updated_by_replace = 0
-        not_touched = 0
-        #row [osm_id, name, admin_level, way, way_area]
-        for row in rows:
-            i += 1
-            if (i%100 == 0):
-                print(i, "/", len(rows), " : ", row[1])
-            osm_id = row[0]
-            way = row[3]
-            way_area = row[4]
-            cur.execute(queryUpperAdminLevel, (osm_id, way))
-            parents = cur.fetchall()
-            
-            curNewSameLocation.execute(sameLocationQuery, {"osm_id": osm_id, "way": way, "way_area": way_area})
-            sameLocations = curNewSameLocation.fetchall()
-            
-            querys, params = buildInserts(parents, row)
-            
-            inserts_to_do = buildInsertsData(parents, row)
-            
-            sameLocations = list(map(lambda x : 
-                {
-                    "id": x[0],
-                    "osm_id": x[1],
-                    "level_1": x[2],
-                    "level_2": x[3],
-                    "level_3": x[4],
-                    "level_4": x[5],
-                    "level_5": x[6],
-                    "level_6": x[7],
-                    "level_7": x[8],
-                    "level_8": x[9],
-                    "level_9": x[10],
-                    "level_10": x[11],
-                    "level_11": x[12],
-                    "level_12": x[13],
-                    "level_13": x[14],
-                    "level_14": x[15],
-                    "level_15": x[16],
-                    "way": x[17],
-                    "way_area": x[18]
-                }, sameLocations))
+        treatRows(rows, connNewDb, conn)
         
-            
-            if (len(sameLocations) == 0):
-                #WAS NOT IN
-                querys = list(map(lambda x: buildInsertString(x), inserts_to_do))
-                for j in range(len(querys)):
-                    full_inserted += 1
-                    curNewDelIns.execute(querys[j], inserts_to_do[j])
-            elif (len(sameLocations) != len(inserts_to_do)):
-                #DELETE
-                ids = list(map(lambda x: x["id"], sameLocations))
-                deleteIds(ids, curNewDelIns)
-                deleted_by_replaced += len(ids)
-                querys = list(map(lambda x: buildInsertString(x), inserts_to_do))
-                for j in range(len(querys)):
-                    inserted_by_replace += 1
-                    curNewDelIns.execute(querys[j], inserts_to_do[j])
-            else:
-                #UPDATES
-                ids = list(map(lambda x: x["id"], sameLocations))
-                enriched_inserts = enrichDataWithSameLocation(inserts_to_do, sameLocations)
-                if (enriched_inserts):
-                    querys = list(map(lambda enriched_ins: buildUpdateString(enriched_ins, enriched_ins["id"]), enriched_inserts))
-                    params = enriched_inserts
-                    
-                    for j in range(len(querys)):
-                        if (len(querys) > 1):
-                            updated_with_multiple_parents += 1
-                        else:
-                            updated_by_replace += 1
-                        curNewDelIns.execute(querys[j], params[j])
-                else:
-                    not_touched += len(ids)
-
-        cur.close()
-        curNewDelIns.close()
         conn.commit()
         connNewDb.commit()
         runSQLScript('cleanQueries.sql', conn)
@@ -367,13 +392,6 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         runSQLScript('searchTableQueries.sql', connNewDb)
         createIndexes(connNewDb)
         connNewDb.commit()
-        
-        print("FULL INSERT: ", full_inserted)
-        print("DELETED BY REPLACED: ", deleted_by_replaced)
-        print("INSERTED BY REPLACE: ",inserted_by_replace)
-        print("UPDATED BY REPLACE: ", updated_by_replace)
-        print("UPDATED PARENTS: ", updated_with_multiple_parents)
-        print("NOT TOUCHED: ", not_touched)
         
     except Exception as e:
         runSQLScript('cleanQueries.sql', conn)
