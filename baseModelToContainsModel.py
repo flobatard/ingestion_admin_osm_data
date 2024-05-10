@@ -2,6 +2,7 @@ import psycopg2
 import solidifyParentsParents as cleanParents
 
 import threading
+from multiprocessing import Pool
 
 def split(a, n):
     k, m = divmod(len(a), n)
@@ -208,7 +209,7 @@ def enrichDataWithSameLocation(data_to_insert, same_location_data):
         ret.append(to_insert)
     return (changes and ret)
 
-def treatRows(rows, connNewDb, connDb):
+def treatRows(rows, connNewDb, connDb, results, i):
     queries = loadSQLQueries('mainQueries.sql')
     queryUpperAdminLevel = queries[2]
     
@@ -300,19 +301,18 @@ def treatRows(rows, connNewDb, connDb):
             else:
                 not_touched += len(ids)
     
-    print("FULL INSERTED: ", full_inserted)
-    print("DELETED BY REPLACED: ", deleted_by_replaced)
-    print("INSERTED BY REPLACE: ", inserted_by_replace)
-    print("UPDATED MULTIPLE PARENTS: ", updated_with_multiple_parents)
-    print("UPDATED BY REPLACE: ", updated_by_replace)
-    print("NOT TOUCHED: ", not_touched)
     cur.close()
     curNewDelIns.close()
     curNewSameLocation.close()
-        
-
     
-
+    results[i] = {
+        "full_inserted": full_inserted,
+        "deleted_by_replaced": deleted_by_replaced,
+        "inserted_by_replaced": inserted_by_replace,
+        "updated_with_multiple_parents": updated_with_multiple_parents,
+        "updated_by_replace: ": updated_by_replace,
+        "not_touched": not_touched
+    }
 
 def baseModelToContainsModel(host ,database ,username, password, port=5432, new_db='osm_data', newHost=None, newUsername=None, newPassword=None, newPort=None, create=True):
 
@@ -377,13 +377,42 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
         for row in rows:
             curNewNames.execute(insertNamesQuery, {"osm_id" : row[0], "name" : row[1], "admin_level" : row[2]})
             
-        curNewSameLocation = connNewDb.cursor()
-
+        curNewNames.close()
+            
         cur.execute(queryAll)
         rows = cur.fetchall()
         
-        treatRows(rows, connNewDb, conn)
+        nb_threads = 10
+        splitted_rows = list(split(rows, nb_threads))
+        threads = [None]*nb_threads
+        results = [None]*nb_threads
         
+        for i in range(len(threads)):
+            threads[i] = threading.Thread(target=treatRows, args=(splitted_rows[i], connNewDb, conn, results, i))
+            threads[i].start()
+
+        # do some other stuff
+
+        for i in range(len(threads)):
+            threads[i].join()
+        
+        res =  {
+            "full_inserted": 0,
+            "deleted_by_replaced": 0,
+            "inserted_by_replaced": 0,
+            "updated_with_multiple_parents": 0,
+            "updated_by_replace: ": 0,
+            "not_touched": 0
+        }
+
+        for i in results:
+            for key in res.keys():
+                print(res)
+                print(results[i])
+                res[key] += results[i][key]
+        
+        print(res)
+
         conn.commit()
         connNewDb.commit()
         runSQLScript('cleanQueries.sql', conn)
