@@ -2,7 +2,7 @@ import psycopg2
 import solidifyParentsParents as cleanParents
 
 import threading
-from multiprocessing import Pool
+from multiprocessing import Pool, Process
 
 def split(a, n):
     k, m = divmod(len(a), n)
@@ -142,11 +142,9 @@ def buildInserts(parents, baseRow):
 
     return (retStrings, inserts_to_do)
 
-def setupFinal(host, new_db, username, port, password):
-    print("CONNECTING TO FINAL DB: host={0} db_name={1} username={2} port={3} password={4}".format(host, new_db, username, port, password))
-    conn2 = psycopg2.connect(host=host, database=new_db, user=username, port=port, password=password)
+def setupFinal(conn):
     print("CONNECTED")
-    cur = conn2.cursor()
+    cur = conn.cursor()
     try:
         print('CREATE extension hstore;')
         cur.execute('CREATE extension hstore;')
@@ -160,13 +158,9 @@ def setupFinal(host, new_db, username, port, password):
     except Exception as e:
         print(e)
         print('Not able to create extension postgis probably already installed : \n CREATE extensions postgis;')
-    conn2.commit()
-    conn2.close()
-    conn2 = psycopg2.connect(host=host, database=new_db, user=username, port=port, password=password)
-
-    runSQLScript('setupFinalQueries.sql', conn2)
-
-    return conn2
+    conn.commit()
+    
+    runSQLScript('setupFinalQueries.sql', conn)
 
 def createIndexes(conn):
     cur = conn.cursor()
@@ -209,7 +203,7 @@ def enrichDataWithSameLocation(data_to_insert, same_location_data):
         ret.append(to_insert)
     return (changes and ret)
 
-def treatRows(rows, connNewDb, connDb, results, i):
+def treatRows(rows, connNewDb, connDb, results, index_result):
     queries = loadSQLQueries('mainQueries.sql')
     queryUpperAdminLevel = queries[2]
     
@@ -305,7 +299,7 @@ def treatRows(rows, connNewDb, connDb, results, i):
     curNewDelIns.close()
     curNewSameLocation.close()
     
-    results[i] = {
+    results[index_result] = {
         "full_inserted": full_inserted,
         "deleted_by_replaced": deleted_by_replaced,
         "inserted_by_replaced": inserted_by_replace,
@@ -340,6 +334,11 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             print(int(newPort), "!=", int(port))
         create = False
 
+    def connectToPrevDB():
+        return psycopg2.connect(host=host, database=database, user=username, port=int(port), password=password)
+    
+    def connectToNextDB():
+        return psycopg2.connect()
 
     print("CONNECTING TO OSM_DB : host=", host, " db_name=", database, " username=", username, " port=", port, " password=", password)
     conn = psycopg2.connect(host=host, database=database, user=username, port=int(port), password=password)
@@ -356,7 +355,9 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             print("CREATE DATABASE \"{}\"".format(new_db))
             cur.execute("CREATE DATABASE \"{}\"".format(new_db))
             
-    connNewDb = setupFinal(newHost, new_db, newUsername, newPort, newPassword)
+    connNewDb =  psycopg2.connect(host=newHost, database=new_db, user=newUsername, port=newPort, password=newPassword)
+    print("CONNECTING TO FINAL DB: host={0} db_name={1} username={2} port={3} password={4}".format(newHost, new_db, newUsername, newPort, newPassword))
+    setupFinal(connNewDb)
 
     runSQLScript('setupQueries.sql', conn, [('$1', new_db)])
     try:
@@ -405,11 +406,9 @@ def baseModelToContainsModel(host ,database ,username, password, port=5432, new_
             "not_touched": 0
         }
 
-        for i in results:
+        for result in results:
             for key in res.keys():
-                print(res)
-                print(results[i])
-                res[key] += results[i][key]
+                res[key] += result[key]
         
         print(res)
 
